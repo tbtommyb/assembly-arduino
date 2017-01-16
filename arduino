@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+# Amend as necessary
+CONF_PATH=/Applications/Arduino.app/Contents/Java/hardware/tools/avr/etc/avrdude.conf
+PART_NO=atmega328p
+PROGRAMMER=arduino
+PORT=/dev/cu.usbmodem1421
+BAUD=115200
+
+# No need to change - this will take the first argument from the command line
+FILE_PATH=$PWD/$1
+
+avrdude -C $CONF_PATH -v -p $PART_NO -c $PROGRAMMER -P $PORT -b $BAUD -D -Uflash:w:$FILE_PATH:i
