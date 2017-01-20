@@ -1,34 +1,52 @@
+; http://www.instructables.com/id/Command-Line-Assembly-Language-Programming-for-Ard-2/
 
-;Get an LED blinking on the ATmega328 (Arduino)
-;On Arduino, pin 13 has an on-board LED which blinks. Pin 13 should map to PB5 (SCK/PCINT5) on the MCU.
- 
-.include "../include/m328Pdef.inc"
+; blinks an LED every second
 
-.ORG   0x0000                   ; Tells the next instruction to be written
- RJMP   main                    ; State that the program begins at the main label
+; PD4 --> LED --> R(220 ohm) --> GND
 
-main:
- LDI    r16, 0xFF               ; Load the immedate value 0xFF (all bits 1) into register 16
- OUT    DDRB, r16               ; Set Data Direction Register B to output for all pins
+.NOLIST
+.INCLUDE "../include/m328Pdef.inc"
+.LIST
 
-loop:
- SBI    PortB, 5                ; Set the 5th bit in PortB. (i.e. turn on the LED)
- RCALL  delay_05
- CBI    PortB, 5                ; Clear the 5th bit in PortB. (i.e. turn off the LED)
- RCALL  delay_05
- RJMP   loop                    ; Loop again
+; Declarations
 
-; Everything beneath is part of the delay loop
-delay_05:
- LDI    r16, 8
+.DEF temp = r16
+.DEF overflows = r17
 
-outer_loop:
- LDI    r24, low(3037)
- LDI    r25, high(3037)
+.ORG 0x0000 ; memory (PC) location of reset handler
+RJMP Reset
+.ORG 0x0020 ; memory location of Timer0 overflow handler
+RJMP overflow_handler ; go here if a Timer0 overflow happens
 
-delay_loop:
- ADIW   r24, 1
- BRNE   delay_loop
- DEC    r16
- BRNE   outer_loop
- RET
+Reset:
+  LDI temp, 0b00000101
+  OUT TCCR0B, temp ; set Clock Selector bits CS00, CS01, CS02 to 101
+  LDI temp, 0b00000001
+  STS TIMSK0, temp ; set Timer Overflow Interrupt Enable
+  SEI ; enable global interrupts
+  CLR temp
+  OUT TCNT0, temp ; initialise timer/counter to 0
+  SBI DDRD, 4 ; set PD4 to output
+
+; Main body
+
+blink:
+  SBI PORTD, 4 ; turn on LED on PD4
+  RCALL delay ; wait a half second
+  CBI PORTD, 4 ; turn off LED on PD4
+  RCALL delay ; wait a half second
+  RJMP blink ; repeat
+
+delay:
+  CLR overflows
+  sec_count:
+    CPI overflows, 30 ; compare number of overflows to 30
+  BRNE sec_count ; go back to sec_count if not equal
+  RET ; matches 30, return to overflow
+
+overflow_handler:
+  INC overflows ; increment
+  CPI overflows, 61 ; compare to 61
+  BRNE PC+2 ; if not equal skip next line
+  CLR overflows ; reset to zero if 61 have occurred
+  RETI ; return from interrupt
